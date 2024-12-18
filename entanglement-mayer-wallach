@@ -1,0 +1,54 @@
+import pennylane as qml
+import numpy as np
+
+n_qubits = 4
+
+dev = qml.device("default.qubit", wires=n_qubits)
+
+def parameterized_circuit(params):
+    # Apply single-qubit rotations
+    for i in range(n_qubits):
+        qml.RY(params[i], wires=i)
+        qml.RZ(params[i + n_qubits], wires=i)
+        
+    
+    for i in range(n_qubits - 1):
+        qml.CNOT(wires=[i, i + 1])
+    qml.CNOT(wires=[n_qubits - 1, 0])  
+    
+
+@qml.qnode(dev)
+def full_state(params):
+    parameterized_circuit(params)
+    return qml.state()
+    
+
+# QNode to compute the reduced density matrix for a single qubit
+@qml.qnode(dev)
+def reduced_density_matrix(params, target_wire):
+    parameterized_circuit(params)
+    return qml.density_matrix([target_wire])
+    
+
+# Function to calculate purity of a reduced density matrix
+def calculate_purity(params, target_wire):
+
+    """Calculates purity of the reduced density matrix for a target wire."""
+    rho = reduced_density_matrix(params, target_wire)
+    purity = np.real(np.trace(rho @ rho))  # Purity is Tr(ρ^2)
+    return purity
+
+# Mayer-Wallach entanglement measure
+def mayer_wallach_entanglement(params):
+    """Calculate Mayer-Wallach global entanglement measure."""
+    Q = 0
+    for k in range(n_qubits):
+        purity = calculate_purity(params, target_wire=k)
+        Q += 1 - purity
+    return (4 / n_qubits) * Q
+
+np.random.seed(42)
+params = np.random.uniform(0, 2 * np.pi, 2 * n_qubits)
+
+entanglement = mayer_wallach_entanglement(params)
+print(f"Mayer-Wallach Entanglement: {entanglement:.4f}")
